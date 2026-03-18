@@ -42,7 +42,9 @@
 
 ### 2. Imported Baseline Layer
 - Purpose: Hold third-party or forked candidate projects under evaluation.
-- Current baseline: `imports/MangaEpubAutomation`
+- Current baselines:
+  - `imports/MangaEpubAutomation`
+  - `imports/copymanga-downloader`
 
 ### 3. Skill Layer
 - Purpose: Hold reusable agent skills derived from project learnings.
@@ -54,6 +56,11 @@
 
 ### 5. Adapter Layer
 - Purpose: Connect the core domain to concrete runtimes such as CLI, UI, local services, or external automation entry points.
+- Current runnable adapter candidates:
+  - `skills/manga-epub-packager-lite/scripts/manga_packager.py`
+  - `apps/copymanga-headless-lite/copymanga_downloader.py`
+  - `apps/manga-pipeline-lite/pipeline.py`
+  - `apps/manga-pipeline-lite/bin/manga-pipeline-lite`
 
 ### 6. Automation Integration Layer
 - Purpose: Host future scheduled or event-driven workflows.
@@ -66,14 +73,26 @@
 - Skills should bundle only the minimum scripts and references needed for repeatable execution.
 
 ## Current Working Direction
-- Imported baseline: `imports/MangaEpubAutomation`
+- Imported baselines:
+  - `imports/MangaEpubAutomation`
+  - `imports/copymanga-downloader`
 - Target environment: Linux on Raspberry Pi 5 4GB
 - Recommended first slice: a self-contained lightweight packaging skill
+- Recommended composition path after the skill:
+  - downloader or downloader-adapter
+  - then packaging skill
+- Current downloader prototype:
+  - `apps/copymanga-headless-lite`
+- Current product entry:
+  - `apps/manga-pipeline-lite`
+  - stage-oriented commands: `doctor`, `download`, `package`, `merge`, `run`
+  - Pi delivery helpers: `install-pi.sh`, `config.pi5.json`, repo-local KCC wrapper under `.tools/manga-pipeline-lite/bin/`
 - Deferred from first slice:
   - WPF GUI
   - Windows-only file pickers
   - hard-coded `.exe` dependency defaults
   - local AI upscaling
+  - Linux desktop GUI adaptation of the Tauri downloader
 
 ## Current Unknowns
 - Final language/runtime for later Pi deliverables

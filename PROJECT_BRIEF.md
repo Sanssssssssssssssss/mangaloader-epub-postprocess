@@ -3,7 +3,7 @@
 ## Project
 - Name: `Piclaw` (working name)
 - Type: Long-term software project for building reusable skills, tools, and later automation workflows for `Lobster`
-- Status: `Skill-first lightweight packaging`
+- Status: `Raspberry Pi delivery kit prepared and validated in WSL`
 
 ## Goal
 - Build a stable, maintainable software foundation that can host multiple `Lobster`-related skills and tools, then evolve into an automation-ready platform.
@@ -46,6 +46,9 @@
 - Existing external repos may be cloned into this workspace and adapted rather than built from scratch.
 - The first Pi milestone should prefer CLI or headless execution over a desktop GUI.
 - The most useful first artifact is a reusable skill that teaches and assists lightweight manga packaging.
+- The next Pi-oriented slice can be a narrow downloader that outputs chapter image folders for the packaging skill.
+- The current product direction is a repo-native lightweight CLI with a stable per-job output layout.
+- The current Pi delivery path uses a repo-local KCC CLI wrapper under `.tools/` plus a Pi-oriented default config.
 
 ## Open Questions
 - What exactly is `Lobster` in this project context: user persona, product codename, bot runtime, or business workflow?

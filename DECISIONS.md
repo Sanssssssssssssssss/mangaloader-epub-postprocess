@@ -73,3 +73,45 @@
 - Status: `Accepted`
 - Decision: Treat the Linux-native Python packaging path as the validated baseline for the first skill.
 - Reason: WSL Ubuntu verification succeeded for chapter packaging and merged anthology generation using KCC plus the bundled Python helpers.
+
+### D-013 Use `copymanga-downloader` as the Second Imported Evaluation Baseline
+- Date: `2026-03-18`
+- Status: `Accepted`
+- Decision: Track `copymanga-downloader` as the second imported repository under evaluation.
+- Reason: The user explicitly selected it for Pi feasibility assessment and possible reuse.
+
+### D-014 Prefer `Downloader -> Packaging Skill` Over Reusing Full Desktop Apps on Pi
+- Date: `2026-03-18`
+- Status: `Accepted`
+- Decision: If downloader automation is needed on Raspberry Pi, prefer a headless downloader path feeding `manga-epub-packager-lite` instead of combining the original desktop applications.
+- Reason: `copymanga-downloader` is Tauri/Linux-desktop oriented, while `MangaEpubAutomation` is Windows/PowerShell oriented; both are weaker fits for the current lightweight Pi target than a narrow downloader-to-packager pipeline.
+
+### D-015 Implement the First Downloader Slice as a Small Python CLI
+- Date: `2026-03-18`
+- Status: `Accepted`
+- Decision: Implement the first downloader slice as a small Python CLI under `apps/copymanga-headless-lite` instead of first extracting a Rust headless adapter from the imported Tauri app.
+- Reason: The public API path was verified directly in WSL, and a Python stdlib CLI is the fastest path to a Pi-friendly headless downloader that can feed the existing packaging skill.
+
+### D-016 Validate the Downloader-to-EPUB Path with a Small Real Sample First
+- Date: `2026-03-18`
+- Status: `Accepted`
+- Decision: Validate the end-to-end pipeline on a small real sample set before attempting a full-series run.
+- Reason: This preserves the lightweight execution model while still proving that downloader output, KCC packaging, and EPUB merge cooperate correctly.
+
+### D-017 Productize the Lightweight Chain as `manga-pipeline-lite`
+- Date: `2026-03-18`
+- Status: `Accepted`
+- Decision: Productize the current lightweight chain as a single-entry CLI app under `apps/manga-pipeline-lite`, using config-driven runs and a stable `runs/<job>` output structure.
+- Reason: This keeps the chain lightweight and explicit while making it feel like a usable product instead of a loose collection of scripts.
+
+### D-018 Keep the Product Repo-Native and Stage-Oriented for Now
+- Date: `2026-03-18`
+- Status: `Accepted`
+- Decision: Keep `manga-pipeline-lite` as a repo-native lightweight product with a Linux wrapper, `doctor` command, and stage-oriented subcommands instead of introducing a heavier standalone packaging system right now.
+- Reason: This improves usability and directory clarity without adding background services, installers, or duplicated code that would work against the Pi-first lightweight constraint.
+
+### D-019 Deliver the Pi Variant with a Repo-Local KCC Wrapper
+- Date: `2026-03-18`
+- Status: `Accepted`
+- Decision: Ship the Raspberry Pi delivery path as a minimal install script plus a Pi-oriented config, and place the KCC CLI wrapper under `.tools/manga-pipeline-lite/bin/kcc-c2e`.
+- Reason: This keeps the install path explicit and repeatable while avoiding a heavy standalone packaging format or a global system dependency assumption.

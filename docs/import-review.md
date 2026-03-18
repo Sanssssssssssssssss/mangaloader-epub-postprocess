@@ -85,3 +85,98 @@
 - Is local AI upscaling mandatory for the first Pi milestone?
 - Will the Pi run a full Linux desktop, or should we assume headless operation only?
 - Should the first deliverable be a simple command, a small TUI, or a local web panel?
+
+---
+
+## Candidate
+- Repository: `copymanga-downloader`
+- Upstream: `https://github.com/lanyeeee/copymanga-downloader`
+- Local path: `imports/copymanga-downloader`
+- Review date: `2026-03-18`
+
+## Goal of Review
+- Determine whether this project can be reused on `Raspberry Pi 5 4GB`.
+- Determine whether it composes well with:
+  - `skills/manga-epub-packager-lite`
+  - `imports/MangaEpubAutomation`
+
+## Repository Snapshot
+- Primary frontend: `Vue 3 + Vite + pnpm`
+- Primary runtime: `Tauri 2 + Rust`
+- Main behavior:
+  - search or favorite-based manga selection
+  - chapter image download
+  - CBZ export
+  - PDF export and optional PDF merge
+
+## Evidence
+- This is a desktop app, not a ready-made CLI:
+  - `package.json` only exposes `vite`, `build`, `preview`, and `tauri`
+  - `src-tauri/src/lib.rs` mounts Tauri commands and events through `invoke_handler`
+- The Rust backend does contain useful reusable download logic:
+  - `src-tauri/src/commands.rs`
+  - `src-tauri/src/download_manager.rs`
+- The downloader writes chapter images into configurable directories:
+  - `src-tauri/src/config.rs`
+  - `src-tauri/src/download_manager.rs`
+- Downloaded image formats are already lightweight and packaging-friendly:
+  - `webp`
+  - `jpg`
+- Built-in export targets are `cbz` and `pdf`, not `epub`:
+  - `src-tauri/src/commands.rs`
+  - `src-tauri/src/export.rs`
+- WSL Linux probe:
+  - `cargo check` reached dependency compilation but failed on missing Linux system build prerequisites before app logic completed
+  - first observed blocker: `pkg-config` / OpenSSL discovery
+- Official Tauri docs still state that Linux uses `webkit2gtk`, which confirms a desktop WebView dependency chain.
+
+## Feasibility Verdict
+- Running `copymanga-downloader` unchanged on Raspberry Pi 5 4GB is **not a lightweight fit**.
+- Reusing its Rust download core for a future headless adapter is **feasible**.
+- Using it together with `manga-epub-packager-lite` is **the most feasible composition path** among the current options.
+- Using it together with original `MangaEpubAutomation` on Pi is **not recommended**.
+
+## Why It Does Not Fit the Current Pi Target Directly
+- Tauri brings Linux desktop runtime dependencies that are heavier than the current headless target.
+- The repo does not currently expose a documented CLI entrypoint.
+- The first verified Linux probe already failed on system dependency setup rather than business logic.
+- Even if Linux desktop build becomes possible, that still conflicts with the current lightweight-first direction.
+
+## Why It Still Has Reuse Value
+- The Rust backend already knows how to:
+  - talk to the source API
+  - fetch chapter image URLs
+  - download image files with concurrency control
+  - write chapter directories in stable order
+- Those chapter directories are exactly the kind of input our EPUB packaging skill already accepts.
+
+## Combined Feasibility
+
+### `copymanga-downloader` + `manga-epub-packager-lite`
+- Verdict: **Feasible and recommended**
+- Best use:
+  - use `copymanga-downloader` as downloader/image materializer
+  - use `manga-epub-packager-lite` to package downloaded chapter folders into EPUB
+  - optionally merge resulting EPUBs into an anthology
+- Required future work for a smooth Pi path:
+  - either extract a headless downloader wrapper from the Rust core
+  - or document an intermediate transfer workflow from a stronger machine to Pi
+
+### `copymanga-downloader` + original `MangaEpubAutomation`
+- Verdict: **Poor fit on Pi**
+- Reason:
+  - one side is Tauri desktop/Linux desktop oriented
+  - the other side is Windows/PowerShell oriented
+  - both together increase setup weight instead of reducing it
+
+### All three together on Pi
+- Verdict: **Not recommended for first Pi path**
+- Recommended simplification:
+  - `copymanga-downloader` or future headless downloader adapter
+  - then `manga-epub-packager-lite`
+  - keep `MangaEpubAutomation` only as reference material for workflow ideas
+
+## Recommended Next Step
+- Do not adapt the full Tauri GUI for Pi first.
+- If downloader automation is needed on Pi, extract or reimplement a headless downloader path from the Rust backend.
+- Otherwise, keep the current Pi path focused on packaging and treat downloader integration as the next milestone.

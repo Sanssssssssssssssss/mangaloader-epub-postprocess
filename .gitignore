@@ -4,3 +4,5 @@ __pycache__/
 *.pyo
 *.tmp
 *.log
+.tools/
+runs/
