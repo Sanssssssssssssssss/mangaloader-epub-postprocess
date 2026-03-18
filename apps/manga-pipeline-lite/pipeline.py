@@ -88,9 +88,9 @@ def run_command(
 def component_paths(root: Path) -> dict[str, Path]:
     return {
         "downloader": root / "apps" / "copymanga-headless-lite" / "copymanga_downloader.py",
-        "packager": root / "skills" / "manga-epub-packager-lite" / "scripts" / "manga_packager.py",
-        "plan_builder": root / "skills" / "manga-epub-packager-lite" / "scripts" / "make_merge_plan.py",
-        "merger": root / "skills" / "manga-epub-packager-lite" / "scripts" / "merge_epub_by_order.py",
+        "packager": root / "apps" / "manga-pipeline-lite" / "postprocess" / "manga_packager.py",
+        "plan_builder": root / "apps" / "manga-pipeline-lite" / "postprocess" / "make_merge_plan.py",
+        "merger": root / "apps" / "manga-pipeline-lite" / "postprocess" / "merge_epub_by_order.py",
     }
 
 

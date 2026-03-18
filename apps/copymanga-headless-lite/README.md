@@ -1,11 +1,13 @@
 # Copymanga Headless Lite
 
+Internal runtime module used by `MangaLoader + EPUB Postprocess`.
+
 Small Linux-friendly CLI for materializing manga chapter image folders from the public CopyManga API.
 
 ## Why this exists
-- `imports/copymanga-downloader` is useful, but it is a Tauri desktop app.
+- `imports/copymanga-downloader` was useful as a reference, but it is a Tauri desktop app.
 - The Raspberry Pi path in this project is intentionally headless and lightweight.
-- This tool keeps only the narrow downloader slice needed for later packaging.
+- This tool keeps only the narrow downloader slice needed for later EPUB postprocess work.
 
 ## Commands
 
@@ -30,24 +32,12 @@ The downloader writes folders like:
         0002.webp
 ```
 
-Point the packaging skill at one group directory:
+Point the postprocess helper at one group directory:
 
 ```bash
-python3 ../../skills/manga-epub-packager-lite/scripts/manga_packager.py \
+python3 ../manga-pipeline-lite/postprocess/manga_packager.py \
   --input-root "<output-root>/<comic-title>/<group-title>" \
   --output-root ./epubs
-```
-
-For a reusable Linux end-to-end path, see:
-
-```bash
-bash ../../scripts/run_wsl_copymanga_to_epub.sh \
-  yanyanzhixiaofangdui \
-  default \
-  3 \
-  "大久保笃" \
-  /mnt/d/GPT_Project/Piclaw/runs/2026-03-18-fire-force-e2e \
-  "炎炎之消防隊 1-3卷 合集"
 ```
 
 ## Notes

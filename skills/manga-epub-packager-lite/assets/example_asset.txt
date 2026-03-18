@@ -1,3 +1,0 @@
-﻿# Unused Asset Placeholder
-
-This skill currently does not require bundled assets.

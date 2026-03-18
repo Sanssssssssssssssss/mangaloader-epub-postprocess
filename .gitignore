@@ -6,6 +6,10 @@ __pycache__/
 *.log
 .tools/
 runs/
+dist/
+docs/
+scripts/
+skills/
 PROJECT_BRIEF.md
 REQUIREMENTS.md
 ARCHITECTURE.md

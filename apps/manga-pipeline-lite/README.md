@@ -18,6 +18,7 @@ It keeps the runtime small by using:
 apps/manga-pipeline-lite/
   bin/
     manga-pipeline-lite
+  postprocess/
   config.example.json
   config.pi5.json
   install-pi.sh
@@ -64,6 +65,8 @@ The Pi installer:
 - installs only the CLI-oriented KCC runtime path
 - avoids the KCC GUI packaging route
 - creates a repo-local wrapper at `./.tools/manga-pipeline-lite/bin/kcc-c2e`
+
+The `postprocess/` directory contains the EPUB packaging and merge helpers used directly by the product runtime.
 
 `config.pi5.json` is the Pi-oriented default:
 - lower `image_workers`
