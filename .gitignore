@@ -1,0 +1,6 @@
+imports/
+__pycache__/
+*.pyc
+*.pyo
+*.tmp
+*.log
