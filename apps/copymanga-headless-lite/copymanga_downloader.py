@@ -7,14 +7,17 @@ import argparse
 import concurrent.futures
 import json
 import os
+import random
 import re
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
 DEFAULT_API_DOMAIN = "api.2025copy.com"
+RETRYABLE_HTTP_CODES = {408, 425, 429, 500, 502, 503, 504}
 DEFAULT_HEADERS = {
     "User-Agent": "COPY/3.0.0",
     "Accept": "application/json",
@@ -24,6 +27,22 @@ DEFAULT_HEADERS = {
     "region": "1",
 }
 IMAGE_HEADERS = {"User-Agent": "COPY/3.0.0"}
+
+
+class DownloaderError(RuntimeError):
+    """Base error for the lightweight downloader."""
+
+
+class ApiRequestError(DownloaderError):
+    """Raised when the API or image host returns an unrecoverable error."""
+
+
+class AuthError(ApiRequestError):
+    """Raised when token-authenticated content rejects the provided token."""
+
+
+class RiskControlError(ApiRequestError):
+    """Raised when the upstream indicates rate limiting or anti-bot control."""
 
 
 def sanitize_filename(name: str) -> str:
@@ -38,6 +57,16 @@ def build_headers(token: str | None = None) -> dict[str, str]:
     return headers
 
 
+def backoff_sleep(base_sec: float, jitter_sec: float, attempt: int) -> None:
+    delay = max(base_sec, 0.0)
+    if attempt > 0:
+        delay *= attempt + 1
+    if jitter_sec > 0:
+        delay += random.uniform(0.0, jitter_sec)
+    if delay > 0:
+        time.sleep(delay)
+
+
 def api_get_json(
     path: str,
     *,
@@ -45,46 +74,93 @@ def api_get_json(
     token: str | None = None,
     api_domain: str = DEFAULT_API_DOMAIN,
     timeout: int = 15,
+    retries: int = 3,
+    retry_base_sec: float = 1.0,
+    retry_jitter_sec: float = 0.5,
+    risk_wait_sec: float = 60.0,
 ) -> dict[str, object]:
     query = urllib.parse.urlencode(params or {})
     url = f"https://{api_domain}{path}"
     if query:
         url = f"{url}?{query}"
-    request = urllib.request.Request(url, headers=build_headers(token))
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"API request failed: {path} -> HTTP {exc.code}: {detail[:300]}") from exc
-    payload = json.loads(body)
-    code = payload.get("code")
-    if code != 200:
-        raise SystemExit(f"API returned unexpected code for {path}: {code} {payload.get('message', '')}")
-    results = payload.get("results")
-    if not isinstance(results, dict):
-        raise SystemExit(f"API results for {path} were not an object")
-    return results
+    last_error: Exception | None = None
+
+    for attempt in range(max(retries, 0) + 1):
+        request = urllib.request.Request(url, headers=build_headers(token))
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                body = response.read().decode("utf-8")
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            if exc.code == 401:
+                raise AuthError(f"API request failed: {path} -> HTTP 401: token invalid or expired") from exc
+            if exc.code == 210:
+                last_error = RiskControlError(f"API request hit risk control: {path} -> HTTP 210: {detail[:300]}")
+                if attempt < max(retries, 0):
+                    time.sleep(max(risk_wait_sec, 0.0))
+                    continue
+                raise last_error from exc
+            if exc.code in RETRYABLE_HTTP_CODES and attempt < max(retries, 0):
+                last_error = ApiRequestError(f"API request failed: {path} -> HTTP {exc.code}: {detail[:300]}")
+                backoff_sleep(retry_base_sec, retry_jitter_sec, attempt)
+                continue
+            raise ApiRequestError(f"API request failed: {path} -> HTTP {exc.code}: {detail[:300]}") from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            last_error = ApiRequestError(f"API request failed: {path} -> {exc}")
+            if attempt < max(retries, 0):
+                backoff_sleep(retry_base_sec, retry_jitter_sec, attempt)
+                continue
+            raise last_error from exc
+
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError as exc:
+            raise ApiRequestError(f"API response was not valid JSON for {path}") from exc
+
+        code = payload.get("code")
+        if code == 200:
+            results = payload.get("results")
+            if not isinstance(results, dict):
+                raise ApiRequestError(f"API results for {path} were not an object")
+            return results
+
+        message = str(payload.get("message", ""))
+        if code == 210:
+            last_error = RiskControlError(f"API returned risk control for {path}: {message}")
+            if attempt < max(retries, 0):
+                time.sleep(max(risk_wait_sec, 0.0))
+                continue
+            raise last_error
+        raise ApiRequestError(f"API returned unexpected code for {path}: {code} {message}")
+
+    raise ApiRequestError(f"API request failed after retries: {path}") from last_error
 
 
-def search(keyword: str, page: int, limit: int, api_domain: str) -> dict[str, object]:
+def search(keyword: str, page: int, limit: int, api_domain: str, request_options: dict[str, object]) -> dict[str, object]:
     offset = max(page - 1, 0) * limit
     return api_get_json(
         "/api/v3/search/comic",
         params={"limit": limit, "offset": offset, "q": keyword, "q_type": "", "platform": 1},
         api_domain=api_domain,
+        **request_options,
     )
 
 
-def get_comic(comic_path_word: str, api_domain: str) -> dict[str, object]:
+def get_comic(comic_path_word: str, api_domain: str, request_options: dict[str, object]) -> dict[str, object]:
     return api_get_json(
         f"/api/v3/comic2/{comic_path_word}",
         params={"platform": 1},
         api_domain=api_domain,
+        **request_options,
     )
 
 
-def get_group_chapters(comic_path_word: str, group_path_word: str, api_domain: str) -> list[dict[str, object]]:
+def get_group_chapters(
+    comic_path_word: str,
+    group_path_word: str,
+    api_domain: str,
+    request_options: dict[str, object],
+) -> list[dict[str, object]]:
     limit = 100
     offset = 0
     items: list[dict[str, object]] = []
@@ -93,10 +169,11 @@ def get_group_chapters(comic_path_word: str, group_path_word: str, api_domain: s
             f"/api/v3/comic/{comic_path_word}/group/{group_path_word}/chapters",
             params={"limit": limit, "offset": offset},
             api_domain=api_domain,
+            **request_options,
         )
         page_items = page.get("list") or []
         if not isinstance(page_items, list):
-            raise SystemExit("Chapter list response was malformed")
+            raise ApiRequestError("Chapter list response was malformed")
         items.extend(page_items)
         total = int(page.get("total") or 0)
         offset += limit
@@ -111,12 +188,14 @@ def get_chapter(
     *,
     token: str | None,
     api_domain: str,
+    request_options: dict[str, object],
 ) -> dict[str, object]:
     return api_get_json(
         f"/api/v3/comic/{comic_path_word}/chapter2/{chapter_uuid}",
         params={"platform": 1},
         token=token,
         api_domain=api_domain,
+        **request_options,
     )
 
 
@@ -134,7 +213,7 @@ def format_output(data: object, as_json: bool) -> None:
 def comic_group_map(comic_results: dict[str, object]) -> dict[str, dict[str, object]]:
     groups = comic_results.get("groups") or {}
     if not isinstance(groups, dict):
-        raise SystemExit("Comic groups were malformed")
+        raise ApiRequestError("Comic groups were malformed")
     return groups
 
 
@@ -151,27 +230,72 @@ def upgrade_image_url(url: str) -> str:
     return url.replace(".c800x.", ".c1500x.")
 
 
-def fetch_image_bytes(url: str, timeout: int = 30) -> tuple[bytes, str]:
-    request = urllib.request.Request(url, headers=IMAGE_HEADERS)
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
-        data = response.read()
-    ext = {
-        "image/webp": "webp",
-        "image/jpeg": "jpg",
-    }.get(content_type)
-    if not ext:
-        raise SystemExit(f"Unsupported image content type: {content_type or 'missing'}")
-    return data, ext
+def fetch_image_bytes(
+    url: str,
+    *,
+    timeout: int = 30,
+    retries: int = 3,
+    retry_base_sec: float = 1.0,
+    retry_jitter_sec: float = 0.5,
+) -> tuple[bytes, str]:
+    last_error: Exception | None = None
+
+    for attempt in range(max(retries, 0) + 1):
+        request = urllib.request.Request(url, headers=IMAGE_HEADERS)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                content_type = response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+                data = response.read()
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            last_error = ApiRequestError(f"Image request failed: {url} -> HTTP {exc.code}: {detail[:300]}")
+            if exc.code in RETRYABLE_HTTP_CODES and attempt < max(retries, 0):
+                backoff_sleep(retry_base_sec, retry_jitter_sec, attempt)
+                continue
+            raise last_error from exc
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            last_error = ApiRequestError(f"Image request failed: {url} -> {exc}")
+            if attempt < max(retries, 0):
+                backoff_sleep(retry_base_sec, retry_jitter_sec, attempt)
+                continue
+            raise last_error from exc
+
+        ext = {
+            "image/webp": "webp",
+            "image/jpeg": "jpg",
+        }.get(content_type)
+        if not ext:
+            raise ApiRequestError(f"Unsupported image content type: {content_type or 'missing'}")
+        return data, ext
+
+    raise ApiRequestError(f"Image request failed after retries: {url}") from last_error
 
 
-def download_one_image(url: str, output_path: Path, skip_existing: bool) -> str:
+def download_one_image(
+    url: str,
+    output_path: Path,
+    skip_existing: bool,
+    *,
+    image_timeout_sec: int,
+    api_retries: int,
+    retry_base_sec: float,
+    retry_jitter_sec: float,
+    image_interval_sec: float,
+) -> str:
     if skip_existing and output_path.exists():
         return f"SKIP {output_path.name}"
-    data, ext = fetch_image_bytes(url)
+    data, ext = fetch_image_bytes(
+        url,
+        timeout=image_timeout_sec,
+        retries=api_retries,
+        retry_base_sec=retry_base_sec,
+        retry_jitter_sec=retry_jitter_sec,
+    )
     if output_path.suffix.lower() != f".{ext}":
         output_path = output_path.with_suffix(f".{ext}")
     output_path.write_bytes(data)
+    if image_interval_sec > 0:
+        time.sleep(image_interval_sec)
     return f"OK {output_path.name}"
 
 
@@ -213,6 +337,11 @@ def download_chapter_to_dir(
     image_workers: int,
     skip_existing: bool,
     max_images: int | None,
+    image_timeout_sec: int,
+    api_retries: int,
+    retry_base_sec: float,
+    retry_jitter_sec: float,
+    image_interval_sec: float,
 ) -> Path:
     destination = chapter_output_dir(output_root, comic_title, group_title, chapter)
     destination.mkdir(parents=True, exist_ok=True)
@@ -222,7 +351,16 @@ def download_chapter_to_dir(
 
     def worker(job: tuple[str, int]) -> str:
         url, index = job
-        return download_one_image(url, destination / f"{index:04d}.webp", skip_existing)
+        return download_one_image(
+            url,
+            destination / f"{index:04d}.webp",
+            skip_existing,
+            image_timeout_sec=image_timeout_sec,
+            api_retries=api_retries,
+            retry_base_sec=retry_base_sec,
+            retry_jitter_sec=retry_jitter_sec,
+            image_interval_sec=image_interval_sec,
+        )
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(image_workers, 1)) as executor:
         results = list(executor.map(worker, jobs))
@@ -232,7 +370,7 @@ def download_chapter_to_dir(
 
 
 def cmd_search(args: argparse.Namespace) -> int:
-    results = search(args.keyword, args.page, args.limit, args.api_domain)
+    results = search(args.keyword, args.page, args.limit, args.api_domain, request_options(args))
     rows = []
     for item in results.get("list") or []:
         rows.append(
@@ -247,7 +385,7 @@ def cmd_search(args: argparse.Namespace) -> int:
 
 
 def cmd_comic(args: argparse.Namespace) -> int:
-    results = get_comic(args.comic_path_word, args.api_domain)
+    results = get_comic(args.comic_path_word, args.api_domain, request_options(args))
     comic = results.get("comic") or {}
     groups = comic_group_map(results)
     payload = {
@@ -268,7 +406,7 @@ def cmd_comic(args: argparse.Namespace) -> int:
 
 
 def cmd_chapters(args: argparse.Namespace) -> int:
-    chapters = get_group_chapters(args.comic_path_word, args.group, args.api_domain)
+    chapters = get_group_chapters(args.comic_path_word, args.group, args.api_domain, request_options(args))
     rows = [
         {
             "index": chapter.get("index"),
@@ -283,12 +421,13 @@ def cmd_chapters(args: argparse.Namespace) -> int:
 
 
 def cmd_download_chapter(args: argparse.Namespace) -> int:
-    comic_results = get_comic(args.comic_path_word, args.api_domain)
+    comic_results = get_comic(args.comic_path_word, args.api_domain, request_options(args))
     chapter_results = get_chapter(
         args.comic_path_word,
         args.chapter_uuid,
         token=args.token or os.getenv("COPYMANGA_TOKEN"),
         api_domain=args.api_domain,
+        request_options=request_options(args),
     )
     comic = chapter_results.get("comic") or {}
     chapter = chapter_results.get("chapter") or {}
@@ -302,17 +441,22 @@ def cmd_download_chapter(args: argparse.Namespace) -> int:
         image_workers=args.image_workers,
         skip_existing=args.skip_existing,
         max_images=args.max_images,
+        image_timeout_sec=args.image_timeout_sec,
+        api_retries=args.api_retries,
+        retry_base_sec=args.retry_base_sec,
+        retry_jitter_sec=args.retry_jitter_sec,
+        image_interval_sec=args.image_interval_sec,
     )
     return 0
 
 
 def cmd_download_group(args: argparse.Namespace) -> int:
-    comic_results = get_comic(args.comic_path_word, args.api_domain)
+    comic_results = get_comic(args.comic_path_word, args.api_domain, request_options(args))
     comic = comic_results.get("comic") or {}
     comic_title = str(comic.get("name") or args.comic_path_word)
     group_title = choose_group_title(comic_results, args.group)
 
-    chapters = get_group_chapters(args.comic_path_word, args.group, args.api_domain)
+    chapters = get_group_chapters(args.comic_path_word, args.group, args.api_domain, request_options(args))
     if args.reverse:
         chapters = list(reversed(chapters))
     if args.limit is not None:
@@ -333,6 +477,7 @@ def cmd_download_group(args: argparse.Namespace) -> int:
             chapter_uuid,
             token=token,
             api_domain=args.api_domain,
+            request_options=request_options(args),
         )
         download_chapter_to_dir(
             output_root=output_root,
@@ -343,13 +488,38 @@ def cmd_download_group(args: argparse.Namespace) -> int:
             image_workers=args.image_workers,
             skip_existing=args.skip_existing,
             max_images=args.max_images,
+            image_timeout_sec=args.image_timeout_sec,
+            api_retries=args.api_retries,
+            retry_base_sec=args.retry_base_sec,
+            retry_jitter_sec=args.retry_jitter_sec,
+            image_interval_sec=args.image_interval_sec,
         )
+        if index < total and args.chapter_interval_sec > 0:
+            time.sleep(args.chapter_interval_sec)
     return 0
+
+
+def request_options(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "timeout": args.api_timeout_sec,
+        "retries": args.api_retries,
+        "retry_base_sec": args.retry_base_sec,
+        "retry_jitter_sec": args.retry_jitter_sec,
+        "risk_wait_sec": args.risk_wait_sec,
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Small headless downloader for CopyManga chapter image folders")
     parser.add_argument("--api-domain", default=DEFAULT_API_DOMAIN, help=f"API domain, default: {DEFAULT_API_DOMAIN}")
+    parser.add_argument("--api-timeout-sec", type=int, default=15, help="Per-request API timeout in seconds")
+    parser.add_argument("--image-timeout-sec", type=int, default=30, help="Per-request image timeout in seconds")
+    parser.add_argument("--api-retries", type=int, default=5, help="Retry count for API and image requests")
+    parser.add_argument("--retry-base-sec", type=float, default=1.0, help="Base retry delay in seconds")
+    parser.add_argument("--retry-jitter-sec", type=float, default=0.5, help="Random retry jitter in seconds")
+    parser.add_argument("--risk-wait-sec", type=float, default=60.0, help="Wait time after HTTP/code 210 risk control")
+    parser.add_argument("--chapter-interval-sec", type=float, default=0.0, help="Sleep between chapters")
+    parser.add_argument("--image-interval-sec", type=float, default=0.0, help="Sleep after each image download")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     search_parser = subparsers.add_parser("search", help="Search comics")
@@ -398,7 +568,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
-    return int(args.func(args))
+    try:
+        return int(args.func(args))
+    except DownloaderError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

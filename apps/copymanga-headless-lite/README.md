@@ -42,5 +42,6 @@ python3 ../manga-pipeline-lite/postprocess/manga_packager.py \
 
 ## Notes
 - This is intentionally smaller than the upstream desktop app.
+- It preserves the upstream request headers, token-auth chapter access, bounded retries, jittered backoff, risk-control waits, and chapter/image interval controls.
 - It does not implement favorites, account pooling, or built-in export.
 - If some content later requires login, token support can be added without changing the current folder contract.
