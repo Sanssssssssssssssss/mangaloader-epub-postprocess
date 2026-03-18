@@ -91,6 +91,8 @@ These folders are the ones you will most often see:
   - runnable product code
   - `apps/copymanga-headless-lite`: lightweight downloader
   - `apps/manga-pipeline-lite`: main product entry, Pi delivery scripts, and EPUB postprocess helpers
+- `skills/`
+  - reusable skill docs for the lightweight packaging workflow
 
 These folders are local/runtime-oriented and may exist only after setup or testing:
 

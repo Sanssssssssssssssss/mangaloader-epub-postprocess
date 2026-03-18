@@ -10,6 +10,16 @@ dist/
 docs/
 scripts/
 skills/
+!skills/
+skills/*
+!skills/manga-epub-packager-lite/
+skills/manga-epub-packager-lite/*
+!skills/manga-epub-packager-lite/SKILL.md
+!skills/manga-epub-packager-lite/references/
+skills/manga-epub-packager-lite/references/*
+!skills/manga-epub-packager-lite/references/workflow.md
+!skills/manga-epub-packager-lite/references/pi-wsl-setup.md
+!skills/manga-epub-packager-lite/references/smoke-test.md
 PROJECT_BRIEF.md
 REQUIREMENTS.md
 ARCHITECTURE.md
