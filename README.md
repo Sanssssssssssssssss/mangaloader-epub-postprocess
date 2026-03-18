@@ -7,6 +7,17 @@
 
 The current target is Raspberry Pi 5 4GB and similar low-resource Linux environments.
 
+## Acknowledgements
+
+This project stands on top of excellent open-source work.
+
+Special thanks to:
+- Ciro Mattia Gonano and Pawel Jastrzebski for [Kindle Comic Converter (KCC)](https://github.com/ciromattia/kcc)
+- lanyeeee for [copymanga-downloader](https://github.com/lanyeeee/copymanga-downloader)
+- YuxuanHan0326 for [MangaEpubAutomation](https://github.com/YuxuanHan0326/MangaEpubAutomation)
+
+Their work made it much faster to build a practical lightweight manga workflow.
+
 ## What This Project Is
 
 This repo combines two practical pieces:
@@ -92,16 +103,6 @@ These folders are local/runtime-oriented and may exist only after setup or testi
 - `imports/`
   - local copies of upstream repositories used during evaluation
   - ignored by git
-
-## Acknowledgements
-
-This project stands on top of excellent open-source work.
-
-Special thanks to:
-- Ciro Mattia Gonano and Pawel Jastrzebski for [Kindle Comic Converter (KCC)](https://github.com/ciromattia/kcc)
-- lanyeeee for [copymanga-downloader](https://github.com/lanyeeee/copymanga-downloader)
-
-Their work made it much faster to build a practical lightweight manga workflow.
 
 ## License
 
