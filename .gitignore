@@ -6,3 +6,9 @@ __pycache__/
 *.log
 .tools/
 runs/
+PROJECT_BRIEF.md
+REQUIREMENTS.md
+ARCHITECTURE.md
+DECISIONS.md
+TASKS.md
+STATE.md

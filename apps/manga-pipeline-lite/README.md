@@ -1,4 +1,6 @@
-# Manga Pipeline Lite
+# MangaLoader + EPUB Postprocess
+
+Internal product module: `apps/manga-pipeline-lite`
 
 `manga-pipeline-lite` is a lightweight Linux-first product entry for:
 - downloading manga chapter image folders
