@@ -12,6 +12,8 @@ Use this skill to package manga image folders into EPUB with the lightest practi
 - generate merge plans with `../../apps/manga-pipeline-lite/postprocess/make_merge_plan.py`
 - merge chapter EPUBs with `../../apps/manga-pipeline-lite/postprocess/merge_epub_by_order.py`
 
+If the user wants the full downloader-to-EPUB path, prefer the product entry `../../apps/manga-pipeline-lite/pipeline.py`, which now defaults to the Rust upstream-core downloader backend.
+
 Default to:
 - no GUI
 - no AI upscaling

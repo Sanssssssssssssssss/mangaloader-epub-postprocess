@@ -9,8 +9,13 @@ Internal product module: `apps/manga-pipeline-lite`
 
 It keeps the runtime small by using:
 - Python stdlib for orchestration
-- the existing lightweight headless downloader
+- a repo-local Rust downloader binary built from the upstream-core headless CLI
 - KCC only for EPUB generation
+
+Note:
+- `apps/manga-pipeline-lite` now defaults to the Rust downloader path.
+- The Rust downloader source lives in `apps/copymanga-headless-rs`.
+- `apps/copymanga-headless-lite` remains only as a legacy reference.
 
 ## Product layout
 
@@ -65,6 +70,7 @@ The Pi installer:
 - installs only the CLI-oriented KCC runtime path
 - avoids the KCC GUI packaging route
 - creates a repo-local wrapper at `./.tools/manga-pipeline-lite/bin/kcc-c2e`
+- builds a repo-local Rust downloader binary at `./.tools/manga-pipeline-lite/bin/copymanga-headless-rs`
 
 The `postprocess/` directory contains the EPUB packaging and merge helpers used directly by the product runtime.
 
@@ -92,8 +98,10 @@ runs/<job-name>/
 
 Important config fields:
 - `job_name`: output directory name under `runs/`
+- `downloader_cmd`: downloader command path, defaulting to the repo-local Rust binary
 - `kcc_cmd`: KCC executable path or command name
 - `profile`: KCC device profile
+- `chapter_workers`: downloader chapter concurrency
 - `skip_existing`: lets repeated runs resume without redoing finished files
 - `max_images_per_chapter`: useful for very cheap smoke tests
 - `steps`: enables or disables `download`, `package`, `merge` for `run`

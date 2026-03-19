@@ -4,6 +4,8 @@
 
 Set up the lightweight packaging skill in a Linux environment without PowerShell.
 
+The full product path now uses a Rust downloader backend plus the existing Python postprocess helpers.
+
 This reference is aimed at:
 - Raspberry Pi OS
 - Ubuntu under WSL2
@@ -61,6 +63,11 @@ Verified in WSL Ubuntu on `2026-03-18` with:
 - `apps/manga-pipeline-lite/postprocess/manga_packager.py` creating chapter EPUBs
 - `apps/manga-pipeline-lite/postprocess/make_merge_plan.py` generating a plan JSON
 - `apps/manga-pipeline-lite/postprocess/merge_epub_by_order.py` generating a merged anthology EPUB
+
+The full product path on Raspberry Pi additionally expects:
+- `apps/manga-pipeline-lite/install-pi.sh`
+- repo-local downloader binary at `./.tools/manga-pipeline-lite/bin/copymanga-headless-rs`
+- repo-local KCC wrapper at `./.tools/manga-pipeline-lite/bin/kcc-c2e`
 
 ## Notes
 

@@ -1,4 +1,6 @@
 imports/
+target/
+**/target/
 __pycache__/
 *.pyc
 *.pyo

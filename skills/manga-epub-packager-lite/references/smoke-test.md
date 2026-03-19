@@ -1,5 +1,7 @@
 # Smoke Test
 
+For full downloader -> package -> merge smoke tests, prefer `apps/manga-pipeline-lite` because it now drives the Rust downloader backend and the Python postprocess stage together.
+
 ## Package Only
 
 Prepare:
